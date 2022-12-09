@@ -21,7 +21,6 @@ def calculate_precision(y_true, y_pred, threshold=0.1):
 
     # Calculate false positive
     fp = np.sum((y_true == 0) & (y_pred > threshold))
-
     # Calculate precision
     precision = tp / (tp + fp)
 

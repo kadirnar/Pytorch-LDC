@@ -20,6 +20,3 @@ TRAIN_CONFIG:
   BATCH_SIZE: 8 # Batch size
   NUM_WORKER: 8 # Number of workers
   MEAN_PIXEL_VALUES: [103.939, 116.779, 123.68, 137.86] # Mean pixel values
-
-TEST_CONFIG:
-  IS_TESTING: False # Whether to test

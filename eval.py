@@ -4,13 +4,13 @@ import os
 import cv2
 import numpy as np
 import torch
+from sklearn.metrics import precision_score, recall_score
 from torch.utils.data import DataLoader
 
 from model.base_model import LDC
 from utils.config_utils import get_config
 from utils.data_utils import create_dir, torch_to_numpy
 from utils.dataset import TestDataset
-from utils.metrics import calculate_precision, calculate_recall, psnr, ssim
 
 
 class LdcEval:
@@ -75,16 +75,12 @@ class LdcEval:
                     output = torch_to_numpy(output)
                     label = torch_to_numpy(labels)
                     self.one_channel_image_label_save(output, label, f"image_{i}.png", f"label_{i}.png")
-                    precision = calculate_precision(output, label)
-                    recall = calculate_recall(output, label)
-                    ssim_score = ssim(output, label)
-                    psnr_score = psnr(output, label)
-
+                    precision = precision_score(label.flatten(), output.flatten())
+                    recall = recall_score(label.flatten(), output.flatten())
                     precision_list.append(precision)
                     recall_list.append(recall)
-        print(f"precision: {np.mean(precision_list)}, recall: {np.mean(recall_list)}")
-        print(f"precision: {np.mean(precision_list)}")
-        print(f"recall: {np.mean(recall_list)}")
+        print(f"Precision: {np.mean(precision_list)}")
+        print(f"Recall: {np.mean(recall_list)}")
 
 
 if __name__ == "__main__":

@@ -52,7 +52,6 @@ def main():
         # Create output directories
         output_dir_epoch = os.path.join(config.DATASET.OUTPUT_DIR, config.DATASET.TRAIN_DATA, str(epoch))
         os.makedirs(output_dir_epoch, exist_ok=True)
-        print(f"Counting parameters of the model: {count_parameters(model)}")
         model.train()
 
         l_weight = [
