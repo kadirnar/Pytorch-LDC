@@ -9,7 +9,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from dataset import DATASET_NAMES, BipedDataset, TestDataset, dataset_info
+from utils.dataset import DATASET_NAMES, BipedDataset, TestDataset, dataset_info
 from utils.loss2 import *
 
 # from modelB4 import LDC
