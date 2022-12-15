@@ -1,15 +1,16 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
+
 
 class Bottleneck(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None, expansion=4):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * expansion)
@@ -39,7 +40,7 @@ class Bottleneck(nn.Module):
 
         return out
 
-    
+
 class GhostModule(nn.Module):
     def __init__(self, inp, oup, kernel_size=1, ratio=2, dw_size=3, stride=1, relu=True):
         super(GhostModule, self).__init__()
@@ -48,13 +49,13 @@ class GhostModule(nn.Module):
         new_channels = init_channels * (ratio - 1)
 
         self.primary_conv = nn.Sequential(
-            nn.Conv2d(inp, init_channels, kernel_size, stride, kernel_size//2, bias=False),
+            nn.Conv2d(inp, init_channels, kernel_size, stride, kernel_size // 2, bias=False),
             nn.BatchNorm2d(init_channels),
             nn.ReLU(inplace=True) if relu else nn.Sequential(),
         )
 
         self.cheap_operation = nn.Sequential(
-            nn.Conv2d(init_channels, new_channels, dw_size, 1, dw_size//2, groups=init_channels, bias=False),
+            nn.Conv2d(init_channels, new_channels, dw_size, 1, dw_size // 2, groups=init_channels, bias=False),
             nn.BatchNorm2d(new_channels),
             nn.ReLU(inplace=True) if relu else nn.Sequential(),
         )
@@ -63,17 +64,18 @@ class GhostModule(nn.Module):
         x1 = self.primary_conv(x)
         x2 = self.cheap_operation(x1)
         out = torch.cat([x1, x2], dim=1)
-        return out[:, :self.oup, :, :]
-    
-    
+        return out[:, : self.oup, :, :]
+
+
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=4):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-                nn.Linear(channel, channel // reduction),
-                nn.ReLU(inplace=True),
-                nn.Linear(channel // reduction, channel),)
+            nn.Linear(channel, channel // reduction),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel),
+        )
 
     def forward(self, x):
         b, c, _, _ = x.size()
@@ -81,20 +83,16 @@ class SELayer(nn.Module):
         y = self.fc(y).view(b, c, 1, 1)
         y = torch.clamp(y, 0, 1)
         return x * y
-    
-    
+
+
 class DoubleConvBlock(nn.Module):
-    def __init__(self, in_features, mid_features,
-                 out_features=None,
-                 stride=1,
-                 use_act=True):
+    def __init__(self, in_features, mid_features, out_features=None, stride=1, use_act=True):
         super(DoubleConvBlock, self).__init__()
 
         self.use_act = use_act
         if out_features is None:
             out_features = mid_features
-        self.conv1 = nn.Conv2d(in_features, mid_features,
-                               3, padding=1, stride=stride)
+        self.conv1 = nn.Conv2d(in_features, mid_features, 3, padding=1, stride=stride)
         self.bn1 = nn.BatchNorm2d(mid_features)
         self.conv2 = nn.Conv2d(mid_features, out_features, 3, padding=1)
         self.bn2 = nn.BatchNorm2d(out_features)
@@ -155,6 +153,7 @@ class CoFusion(nn.Module):
         attn = F.softmax(self.conv3(attn), dim=1)
         return ((x * attn).sum(1)).unsqueeze(1)
 
+
 def weight_init(m):
     if isinstance(m, (nn.Conv2d,)):
         torch.nn.init.xavier_normal_(m.weight, gain=1.0)
@@ -176,14 +175,15 @@ def weight_init(m):
         if m.bias is not None:
             torch.nn.init.zeros_(m.bias)
 
+
 def depthwise_conv(inp, oup, kernel_size=3, stride=1, relu=False):
     return nn.Sequential(
-        nn.Conv2d(inp, oup, kernel_size, stride, kernel_size//2, groups=inp, bias=False),
+        nn.Conv2d(inp, oup, kernel_size, stride, kernel_size // 2, groups=inp, bias=False),
         nn.BatchNorm2d(oup),
         nn.ReLU(inplace=True) if relu else nn.Sequential(),
     )
-    
-    
+
+
 class GhostBottleneck(nn.Module):
     def __init__(self, inp, hidden_dim, oup, kernel_size, stride, use_se):
         super(GhostBottleneck, self).__init__()
@@ -193,7 +193,7 @@ class GhostBottleneck(nn.Module):
             # pw
             GhostModule(inp, hidden_dim, kernel_size=1, relu=True),
             # dw
-            depthwise_conv(hidden_dim, hidden_dim, kernel_size, stride, relu=False) if stride==2 else nn.Sequential(),
+            depthwise_conv(hidden_dim, hidden_dim, kernel_size, stride, relu=False) if stride == 2 else nn.Sequential(),
             # Squeeze-and-Excite
             SELayer(hidden_dim) if use_se else nn.Sequential(),
             # pw-linear
@@ -210,4 +210,4 @@ class GhostBottleneck(nn.Module):
             )
 
     def forward(self, x):
-        return self.conv(x) + self.shortcut(x)   
+        return self.conv(x) + self.shortcut(x)

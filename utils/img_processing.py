@@ -5,12 +5,6 @@ import kornia as kn
 import numpy as np
 import torch
 
-from utils.config_utils import get_config
-
-
-def stack(*args):
-    return np.hstack(args)
-
 
 def image_normalization(img, img_min=0, img_max=255, epsilon=1e-12):
     """This is a typical image normalization function
@@ -38,34 +32,49 @@ def count_parameters(model=None):
         raise NotImplementedError
 
 
-def save_image_batch_to_disk(
-    tensor,
-    output_dir,
-    file_names,
-    img_shape=None,
-    is_testing=False,
-    is_inchannel=False,
-    config_path="data/config/default_config.yaml",
-):
+def save_image_batch_to_disk(tensor, output_dir, file_names, img_shape=None, arg=None, is_inchannel=False):
+
     os.makedirs(output_dir, exist_ok=True)
-    if not is_testing:
+    if not arg.is_testing:
         assert len(tensor.shape) == 4, tensor.shape
         img_shape = np.array(img_shape)
         for tensor_image, file_name in zip(tensor, file_names):
             image_vis = kn.utils.tensor_to_image(torch.sigmoid(tensor_image))  # [..., 0]
             image_vis = (255.0 * (1.0 - image_vis)).astype(np.uint8)
             output_file_name = os.path.join(output_dir, file_name)
-            image_vis = cv2.resize(image_vis, dsize=(int(img_shape[1]), int(img_shape[0])))
+            image_vis = cv2.resize(image_vis, dsize=(img_shape[1], img_shape[0]))
             assert cv2.imwrite(output_file_name, image_vis)
     else:
-        tensor2 = None
-        tmp_img2 = None
+        if is_inchannel:
+
+            tensor, tensor2 = tensor
+            fuse_name = "fusedCH"
+            av_name = "avgCH"
+            is_2tensors = True
+            edge_maps2 = []
+            for i in tensor2:
+                tmp = torch.sigmoid(i).cpu().detach().numpy()
+                edge_maps2.append(tmp)
+            tensor2 = np.array(edge_maps2)
+        else:
+            fuse_name = "fused"
+            av_name = "avg"
+            tensor2 = None
+            tmp_img2 = None
+
+        output_dir_f = os.path.join(output_dir, fuse_name)
+        output_dir_a = os.path.join(output_dir, av_name)
+        os.makedirs(output_dir_f, exist_ok=True)
+        os.makedirs(output_dir_a, exist_ok=True)
+
+        # 255.0 * (1.0 - em_a)
         edge_maps = []
         for i in tensor:
             tmp = torch.sigmoid(i).cpu().detach().numpy()
             edge_maps.append(tmp)
         tensor = np.array(edge_maps)
-        # breakpoint()
+        # print(f"tensor shape: {tensor.shape}")
+
         image_shape = [x.cpu().detach().numpy() for x in img_shape]
         # (H, W) -> (W, H)
         image_shape = [[y, x] for x, y in zip(image_shape[0], image_shape[1])]
@@ -83,16 +92,26 @@ def save_image_batch_to_disk(
             # Iterate our all 7 NN outputs for a particular image
             preds = []
             fuse_num = tmp.shape[0] - 1
-
             for i in range(tmp.shape[0]):
                 tmp_img = tmp[i]
                 tmp_img = np.uint8(image_normalization(tmp_img))
                 tmp_img = cv2.bitwise_not(tmp_img)
+                # tmp_img[tmp_img < 0.0] = 0.0
+                # tmp_img = 255.0 * (1.0 - tmp_img)
+                if tmp2 is not None:
+                    tmp_img2 = tmp2[i]
+                    tmp_img2 = np.uint8(image_normalization(tmp_img2))
+                    tmp_img2 = cv2.bitwise_not(tmp_img2)
 
                 # Resize prediction to match input image size
                 if not tmp_img.shape[1] == i_shape[0] or not tmp_img.shape[0] == i_shape[1]:
                     tmp_img = cv2.resize(tmp_img, (i_shape[0], i_shape[1]))
                     tmp_img2 = cv2.resize(tmp_img2, (i_shape[0], i_shape[1])) if tmp2 is not None else None
+
+                if tmp2 is not None:
+                    tmp_mask = np.logical_and(tmp_img > 128, tmp_img2 < 128)
+                    tmp_img = np.where(tmp_mask, tmp_img2, tmp_img)
+                    preds.append(tmp_img)
 
                 else:
                     preds.append(tmp_img)
@@ -101,23 +120,24 @@ def save_image_batch_to_disk(
                     # print('fuse num',tmp.shape[0], fuse_num, i)
                     fuse = tmp_img
                     fuse = fuse.astype(np.uint8)
+                    if tmp_img2 is not None:
+                        fuse2 = tmp_img2
+                        fuse2 = fuse2.astype(np.uint8)
+                        # fuse = fuse-fuse2
+                        fuse_mask = np.logical_and(fuse > 128, fuse2 < 128)
+                        fuse = np.where(fuse_mask, fuse2, fuse)
+
+                        # print(fuse.shape, fuse_mask.shape)
 
             # Get the mean prediction of all the 7 outputs
-            config = get_config(config_path)
-            model_path = config.TRAIN_CONFIG.CHECKPOINT_DATA
-            model_name = model_path.split("/")[-1]
-            model_name = model_name.split(".")[0]
-
-            save_image_path = os.path.join(output_dir, model_name)
-            os.makedirs(save_image_path, exist_ok=True)
             average = np.array(preds, dtype=np.float32)
             average = np.uint8(np.mean(average, axis=0))
-            output_file_name = os.path.join(save_image_path, file_name)
-            # multi_img = stack(fuse, average)
-            cv2.imwrite(output_file_name, fuse)
+            output_file_name_f = os.path.join(output_dir_f, file_name)
+            output_file_name_a = os.path.join(output_dir_a, file_name)
+            cv2.imwrite(output_file_name_f, fuse)
+            cv2.imwrite(output_file_name_a, average)
 
             idx += 1
-            return fuse
 
 
 def restore_rgb(config, I, restore_rgb=False):
@@ -150,15 +170,13 @@ def restore_rgb(config, I, restore_rgb=False):
     return I
 
 
-def visualize_result(imgs_list):
+def visualize_result(imgs_list, arg):
     """
     data 2 image in one matrix
     :param imgs_list: a list of prediction, gt and input data
     :param arg:
     :return: one image with the whole of imgs_list data
     """
-    mean_pixel_values = [103.939, 116.779, 123.68, 137.86]
-    channel_swap = [2, 1, 0]
     n_imgs = len(imgs_list)
     data_list = []
     for i in range(n_imgs):
@@ -166,7 +184,7 @@ def visualize_result(imgs_list):
         # print(tmp.shape)
         if tmp.shape[0] == 3:
             tmp = np.transpose(tmp, [1, 2, 0])
-            tmp = restore_rgb([channel_swap, mean_pixel_values[:3]], tmp)
+            tmp = restore_rgb([arg.channel_swap, arg.mean_pixel_values[:3]], tmp)
             tmp = np.uint8(image_normalization(tmp))
         else:
             tmp = np.squeeze(tmp)
