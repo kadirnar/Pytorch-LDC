@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from common import CoFusion, DoubleConvBlock, GhostBottleneck, UpConvBlock, weight_init
+from backbone.common import CoFusion, DoubleConvBlock, GhostBottleneck, UpConvBlock, weight_init
 
 
 class LDC(nn.Module):
