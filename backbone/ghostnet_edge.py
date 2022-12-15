@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from backbone.common import CoFusion, DoubleConvBlock, GhostBottleneck, UpConvBlock, weight_init
+from common import CoFusion, DoubleConvBlock, GhostBottleneck, UpConvBlock, weight_init
 
 
 class LDC(nn.Module):
@@ -78,7 +78,6 @@ class LDC(nn.Module):
 
 if __name__ == "__main__":
     from torchview import draw_graph
-
     model = LDC()
     model_graph = draw_graph(model, input_size=(1, 3, 352, 352), expand_nested=True)
     model_graph.visual_graph.view()
