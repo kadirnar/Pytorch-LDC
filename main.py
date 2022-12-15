@@ -9,12 +9,11 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from utils.dataset import DATASET_NAMES, BipedDataset, TestDataset, dataset_info
-from utils.loss2 import *
-
 # from modelB4 import LDC
-from backbone.ghostnet_edge import LDC
+from backbone.mymodel import LDC
+from utils.dataset import DATASET_NAMES, BipedDataset, TestDataset, dataset_info
 from utils.img_processing import count_parameters, save_image_batch_to_disk, visualize_result
+from utils.loss2 import *
 
 IS_LINUX = True if platform.system() == "Linux" else False
 

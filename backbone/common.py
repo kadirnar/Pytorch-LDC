@@ -142,10 +142,10 @@ class UpConvBlock(nn.Module):
 class CoFusion(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(CoFusion, self).__init__()
-        self.conv1 = nn.Conv2d(in_ch, 32, kernel_size=3, stride=1, padding=1)  # before 64
-        self.conv3 = nn.Conv2d(32, out_ch, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
+        self.conv1 = nn.Conv2d(in_ch, 64, kernel_size=3, stride=1, padding=1)  # before 64
+        self.conv3 = nn.Conv2d(64, out_ch, kernel_size=3, stride=1, padding=1)  # before 64  instead of 32
         self.relu = nn.ReLU()
-        self.norm_layer1 = nn.GroupNorm(4, 32)  # before 64
+        self.norm_layer1 = nn.GroupNorm(4, 64)  # before 64
 
     def forward(self, x):
         # fusecat = torch.cat(x, dim=1)
@@ -211,3 +211,28 @@ class GhostBottleneck(nn.Module):
 
     def forward(self, x):
         return self.conv(x) + self.shortcut(x)
+
+
+class SingleConvBlock(nn.Module):
+    def __init__(self, in_features, out_features, stride, use_bs=True):
+        super(SingleConvBlock, self).__init__()
+        self.use_bn = use_bs
+        self.conv = nn.Conv2d(in_features, out_features, 1, stride=stride, bias=True)
+        self.bn = nn.BatchNorm2d(out_features)
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.use_bn:
+            x = self.bn(x)
+        return x
+
+
+def conv3x3(in_planes, out_planes, stride=1, device='cuda'):
+    """3x3 convolution with padding"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
+                     padding=1, bias=False).to(device)
+
+
+def conv1x1(in_planes, out_planes, stride=1):
+    """1x1 convolution"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
