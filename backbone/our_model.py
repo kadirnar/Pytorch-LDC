@@ -8,7 +8,6 @@ from common import (
     UpConvBlock,
     weight_init,
 )
-from ldc.utils.img_processing import count_parameters
 
 class LDC(nn.Module):
     def __init__(self):
@@ -22,20 +21,12 @@ class LDC(nn.Module):
         
         # Block-1
         self.ghost_module_1 = GhostBottleneck(inp=96, hidden_dim=96, oup=96, kernel_size=3, stride=1, use_se=True)
-        self.ghost_module_1_1 = GhostBottleneck(inp=96, hidden_dim=96, oup=96, kernel_size=3, stride=1, use_se=True)
-        self.ghost_module_1_2 = GhostBottleneck(inp=96, hidden_dim=96, oup=96, kernel_size=3, stride=1, use_se=True)
-
 
         # Block-2
         self.ghost_module_2 = GhostBottleneck(inp=128, hidden_dim=128, oup=128, kernel_size=3, stride=1, use_se=True)
-        self.ghost_module_2_1 = GhostBottleneck(inp=128, hidden_dim=128, oup=128, kernel_size=3, stride=1, use_se=True)
-        self.ghost_module_2_2 = GhostBottleneck(inp=128, hidden_dim=128, oup=128, kernel_size=3, stride=1, use_se=True)
-        
-        
+
         # Block-3
         self.ghost_module_3 = GhostBottleneck(inp=256, hidden_dim=256, oup=256, kernel_size=3, stride=1, use_se=True)
-        self.ghost_module_3_1 = GhostBottleneck(inp=256, hidden_dim=256, oup=256, kernel_size=3, stride=1, use_se=True)
-        self.ghost_module_3_2 = GhostBottleneck(inp=256, hidden_dim=256, oup=256, kernel_size=3, stride=1, use_se=True)
 
 
         # Residual block
@@ -67,14 +58,13 @@ class LDC(nn.Module):
 
         # Block 2 
         # residual block
+        stage_1_ghost = self.ghost_module_1(input_ghost_layer_4) # 32
         stage_1_residual = self.residual_single_conv_0(input_ghost_layer_2) # 32
         stage_1_residual_32_64 = self.residual_single_conv_2(stage_1_residual) # 64
         
         stage_1 = self.ghost_module_1(stage_1_residual) # 32
-        stage_1_1 = self.ghost_module_1_1(stage_1) # 32
-        stage_1_2 = self.ghost_module_1_2(stage_1_1) # 32
-        stage_1_residualv2_32_64 = self.residual_single_conv_2(stage_1_2) # 64
-        stage_1_residual_2 = self.residual_single_conv_2(stage_1_2) # 64
+        stage_1_residualv2_32_64 = self.residual_single_conv_2(stage_1) # 64
+        stage_1_residual_2 = self.residual_single_conv_2(stage_1) # 64
         
         # Block 3
         # residual block
@@ -82,24 +72,20 @@ class LDC(nn.Module):
         stage_2_residual_48_64 = self.residual_single_conv_3(stage_2_residual) # 64
         
         stage_2 = self.ghost_module_2(stage_2_residual) # 48
-        stage_2_1 = self.ghost_module_2_1(stage_2) # 48
-        stage_2_2 = self.ghost_module_2_2(stage_2_1) # 48
-        stage_2_residual_48_64v2 = self.residual_single_conv_3(stage_2_2) # 64
+        stage_2_residual_48_64v2 = self.residual_single_conv_3(stage_2) # 64
         
-        stage_2_residual_2 = self.residual_single_conv_3(stage_2_2) # 64
+        stage_2_residual_2 = self.residual_single_conv_3(stage_2) # 64
         
         # Block 4
         # residual block
         stage_3_residual = self.residual_single_conv_2(input_ghost_layer_4) # 64
         
         stage_3 = self.ghost_module_3(stage_3_residual) # 64
-        stage_3_1 = self.ghost_module_3_1(stage_3) # 64
-        stage_3_2 = self.ghost_module_3_2(stage_3_1) # 64
 
         # stage cat
-        stage_2_cat = stage_1_residual_2 + stage_2_residual_2 + stage_3_2 # 64
+        stage_2_cat = stage_1_residual_2 + stage_2_residual_2 + stage_3 # 64
         stage_3_cat = stage_1_residual_32_64 + stage_2_residual_48_64 + stage_3_residual
-        stage_4_cat = stage_1_residualv2_32_64 + stage_2_residual_48_64v2 + stage_3_2
+        stage_4_cat = stage_1_residualv2_32_64 + stage_2_residual_48_64v2 + stage_3
  
         # upsampling blocks
         out_1 = self.up_block_1(input_ghost_layer_4) # bu doğru.
@@ -117,12 +103,3 @@ class LDC(nn.Module):
         # return results
         results.append(block_cat)
         return results
-
-
-if __name__ == "__main__":
-    from torchview import draw_graph
-
-    model = LDC()
-    print(count_parameters(model))
-    model_graph = draw_graph(model, input_size=(1, 3, 352, 352), expand_nested=False, depth=1)
-    model_graph.visual_graph.view()
